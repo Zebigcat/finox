@@ -302,12 +302,12 @@ Si une information est illisible, mets null pour ce champ. Le montant doit être
               </div>
               <div>
                 <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Configuration requise</div>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Clé API Anthropic nécessaire</div>
+                <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Clé API Claude nécessaire</div>
               </div>
             </div>
             <div className="api-key-notice" style={{ marginBottom: 16 }}>
               <AlertTriangle />
-              <p>Pour utiliser l'agent IA, configurez votre clé API Anthropic dans les paramètres.</p>
+              <p>Pour utiliser l'agent IA, configurez votre clé API Claude dans les paramètres.</p>
             </div>
             <Link to="/parametres" className="btn btn-primary">
               <Bot size={16} /> Configurer la clé API

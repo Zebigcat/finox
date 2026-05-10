@@ -76,7 +76,7 @@ export default function Landing() {
       <section className="landing-hero">
         <div className="landing-hero-badge">
           <Sparkles size={13} />
-          Propulsé par Claude · Anthropic
+          Créé par Alexis Boukandoura
         </div>
 
         <h1 className="landing-hero-title">
@@ -169,7 +169,7 @@ export default function Landing() {
       <footer className="landing-footer">
         <span>© 2025 Finox v1.0.0</span>
         <span className="landing-footer-sep">·</span>
-        <span>Powered by Claude (Anthropic)</span>
+        <span>Créé par Alexis Boukandoura</span>
         <span className="landing-footer-sep">·</span>
         <Link to="/dashboard" style={{ color: 'var(--text-muted)', textDecoration: 'underline' }}>Application</Link>
       </footer>

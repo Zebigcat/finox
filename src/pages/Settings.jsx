@@ -52,12 +52,12 @@ export default function Settings() {
           {/* API Key section */}
           <div className="card" style={{ marginBottom: 16 }}>
             <div className="card-header" style={{ marginBottom: 20 }}>
-              <span className="card-title">Clé API Anthropic</span>
+              <span className="card-title">Clé API Claude</span>
             </div>
 
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.7 }}>
-              L'agent IA Finox utilise l'API Anthropic (Claude). Votre clé est stockée localement
-              dans votre navigateur et n'est jamais envoyée à un serveur tiers.
+              L'agent IA utilise l'API Claude pour analyser vos finances. Votre clé est stockée
+              localement dans votre navigateur et n'est jamais envoyée à un serveur tiers.
             </p>
 
             {saved && (
@@ -132,7 +132,7 @@ export default function Settings() {
               </p>
               <ul style={{ paddingLeft: 20, display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <li>Toutes vos données sont stockées localement (localStorage)</li>
-                <li>Aucune donnée n'est envoyée à un serveur (sauf à l'API Anthropic)</li>
+                <li>Aucune donnée n'est envoyée à un serveur (sauf à l'API Claude pour le chat)</li>
                 <li>Compatible avec les exports CSV Sumeria / Orange Bank</li>
                 <li>Catégorisation automatique des transactions</li>
               </ul>
@@ -147,7 +147,7 @@ export default function Settings() {
               justifyContent: 'space-between',
             }}>
               <span>Finox v1.0.0</span>
-              <span>Powered by Claude (Anthropic)</span>
+              <span>Créé par Alexis Boukandoura</span>
             </div>
           </div>
         </div>
