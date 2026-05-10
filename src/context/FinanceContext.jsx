@@ -1,36 +1,37 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { getCategoryEmoji } from '../utils/csvParser'
 
 const FinanceContext = createContext(null)
 
 // ─── Row shape helpers ────────────────────────────────────────────────────────
+// DB columns : id | user_id | date | label | amount | type | cat | created_at
+// App object : id | date | label | merchant | amount | category | emoji | balance | type
 
 function rowToTx(row) {
+  const amount = parseFloat(row.amount)
   return {
     id:       row.id,
-    date:     row.date,          // "YYYY-MM-DD"
+    date:     row.date,
     label:    row.label,
-    merchant: row.merchant,
-    amount:   parseFloat(row.amount),
-    category: row.category,
-    emoji:    row.emoji ?? '📦',
-    balance:  row.balance !== null && row.balance !== undefined
-                ? parseFloat(row.balance)
-                : null,
+    merchant: row.label,                  // no separate merchant column — use label
+    amount:   row.type === 'expense' ? -Math.abs(amount) : Math.abs(amount),
+    type:     row.type,
+    category: row.cat,
+    emoji:    getCategoryEmoji(row.cat),  // derived from category name
+    balance:  null,
   }
 }
 
 function txToRow(tx, userId) {
   return {
-    id:       tx.id,
-    user_id:  userId,
-    date:     tx.date,
-    label:    tx.label,
-    merchant: tx.merchant,
-    amount:   tx.amount,
-    category: tx.category,
-    emoji:    tx.emoji ?? '📦',
-    balance:  tx.balance ?? null,
+    id:      tx.id,
+    user_id: userId,
+    date:    tx.date,
+    label:   tx.label,
+    amount:  Math.abs(tx.amount),         // store absolute value; type carries the sign
+    type:    tx.amount >= 0 ? 'income' : 'expense',
+    cat:     tx.category ?? 'Autre',
   }
 }
 
@@ -87,10 +88,15 @@ export function FinanceProvider({ children }) {
       })()
       if (local.length > 0) {
         const rows = local.map(t => txToRow(t, currentUser.id))
-        const { error: upErr } = await supabase.from('transactions').upsert(rows, { onConflict: 'id' })
+        const { error: upErr } = await supabase
+          .from('transactions')
+          .upsert(rows, { onConflict: 'id' })
         if (!upErr) {
           localStorage.removeItem('finox_transactions')
-          setTransactions(local.sort((a, b) => new Date(b.date) - new Date(a.date)))
+          // Re-shape migrated transactions through rowToTx for consistency
+          const migrated = rows.map(r => rowToTx(r))
+            .sort((a, b) => new Date(b.date) - new Date(a.date))
+          setTransactions(migrated)
           setTxLoading(false)
           return
         }

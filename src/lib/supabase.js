@@ -3,10 +3,10 @@ import { createClient } from '@supabase/supabase-js'
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!url || !key) {
+if (!url || !key || key === 'your_anon_key_here') {
   throw new Error(
-    'Variables d\'environnement Supabase manquantes.\n' +
-    'Copiez .env.local.example vers .env.local et remplissez VITE_SUPABASE_URL et VITE_SUPABASE_ANON_KEY.'
+    'Supabase non configuré.\n' +
+    'Ouvrez le fichier .env et remplacez your_anon_key_here par votre clé anon Supabase.'
   )
 }
 
