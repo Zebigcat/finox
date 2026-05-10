@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { LayoutDashboard, List, BarChart2, Upload, Bot, Settings } from 'lucide-react'
+import { LayoutDashboard, List, BarChart2, Upload, Bot, Settings, LogOut } from 'lucide-react'
+import { useFinance } from '../context/FinanceContext'
 
 const navItems = [
   { to: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
@@ -23,6 +24,10 @@ const mobileItems = [
 ]
 
 export default function Layout() {
+  const { user, signOut } = useFinance()
+  const email = user?.email ?? ''
+  const initials = email ? email[0].toUpperCase() : '?'
+
   return (
     <div className="app-layout">
       {/* Sidebar — desktop */}
@@ -61,7 +66,16 @@ export default function Layout() {
         </nav>
 
         <div className="sidebar-footer">
-          Finox v1.0
+          <div className="sidebar-user">
+            <div className="sidebar-user-avatar">{initials}</div>
+            <div className="sidebar-user-info">
+              <span className="sidebar-user-email">{email}</span>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Finox v1.0</span>
+            </div>
+            <button className="sidebar-logout-btn" onClick={signOut} title="Se déconnecter">
+              <LogOut size={15} />
+            </button>
+          </div>
         </div>
       </aside>
 

@@ -63,11 +63,11 @@ export default function Landing() {
           <span className="sidebar-logo-text" style={{ fontSize: 18 }}>Finox</span>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <Link to="/parametres" className="btn btn-secondary" style={{ fontSize: 13, padding: '7px 14px' }}>
-            Paramètres
+          <Link to="/auth" className="btn btn-secondary" style={{ fontSize: 13, padding: '7px 14px' }}>
+            Se connecter
           </Link>
-          <Link to="/dashboard" className="btn btn-primary" style={{ fontSize: 13, padding: '7px 14px' }}>
-            Tableau de bord
+          <Link to="/auth" className="btn btn-primary" style={{ fontSize: 13, padding: '7px 14px' }}>
+            Commencer
           </Link>
         </div>
       </header>
@@ -90,11 +90,11 @@ export default function Landing() {
         </p>
 
         <div className="landing-hero-cta">
-          <Link to="/import" className="btn btn-primary landing-cta-primary">
+          <Link to="/auth" className="btn btn-primary landing-cta-primary">
             Commencer maintenant <ArrowRight size={17} />
           </Link>
           <Link to="/dashboard" className="btn btn-secondary landing-cta-secondary">
-            Voir le tableau de bord
+            Tableau de bord
           </Link>
         </div>
 
@@ -160,8 +160,8 @@ export default function Landing() {
           <p className="landing-bottom-sub">
             Gratuit · Local · Privé · Aucune inscription requise
           </p>
-          <Link to="/import" className="btn btn-primary landing-cta-primary">
-            Importer mes données <ArrowRight size={17} />
+          <Link to="/auth" className="btn btn-primary landing-cta-primary">
+            Créer mon compte <ArrowRight size={17} />
           </Link>
         </div>
       </section>

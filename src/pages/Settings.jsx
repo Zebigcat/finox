@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { Save, Eye, EyeOff, CheckCircle, ExternalLink } from 'lucide-react'
+import { Save, Eye, EyeOff, CheckCircle, ExternalLink, LogOut, User } from 'lucide-react'
 import { useFinance } from '../context/FinanceContext'
 
 export default function Settings() {
-  const { apiKey, setApiKey } = useFinance()
+  const { apiKey, setApiKey, user, signOut } = useFinance()
   const [localKey, setLocalKey] = useState(apiKey)
   const [showKey, setShowKey] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -23,6 +23,32 @@ export default function Settings() {
 
       <div className="page-content">
         <div style={{ maxWidth: 520 }}>
+          {/* Account section */}
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-header">
+              <span className="card-title">Compte</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+              <div style={{
+                width: 44, height: 44, borderRadius: '50%',
+                background: 'var(--accent-glow)', border: '1px solid rgba(124,111,205,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <User size={20} color="var(--accent-light)" />
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {user?.email}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Connecté via Supabase</div>
+              </div>
+              <button className="btn btn-secondary" onClick={signOut} style={{ flexShrink: 0, color: 'var(--red)', borderColor: 'rgba(248,113,113,0.3)' }}>
+                <LogOut size={14} /> Déconnexion
+              </button>
+            </div>
+          </div>
+
           {/* API Key section */}
           <div className="card" style={{ marginBottom: 16 }}>
             <div className="card-header" style={{ marginBottom: 20 }}>
