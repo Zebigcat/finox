@@ -100,7 +100,7 @@ export default function Import() {
       </div>
 
       <div className="page-content">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, alignItems: 'start' }}>
+        <div className="import-layout">
           <div>
             {/* Drop zone */}
             <div

@@ -176,7 +176,8 @@ export default function Transactions() {
             </div>
           ) : (
             <>
-              <table className="transactions-table">
+              {/* Desktop table */}
+              <table className="transactions-table tx-desktop-table">
                 <thead>
                   <tr>
                     <th>Date</th>
@@ -218,6 +219,30 @@ export default function Transactions() {
                   ))}
                 </tbody>
               </table>
+
+              {/* Mobile card list */}
+              <div className="tx-card-list">
+                {paged.map(t => (
+                  <div key={t.id} className="tx-card">
+                    <div className="tx-card-row">
+                      <span className="tx-card-merchant">{t.merchant}</span>
+                      <span className={t.amount >= 0 ? 'amount-positive' : 'amount-negative'} style={{ fontSize: 15, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        {t.amount >= 0 ? '+' : ''}{formatAmount(t.amount)}
+                      </span>
+                    </div>
+                    <div className="tx-card-row" style={{ marginTop: 6 }}>
+                      <span className="tx-card-date">{formatDate(t.date)}</span>
+                      <span className="category-badge" style={{
+                        background: (CATEGORY_COLORS[t.category] || '#71717a') + '20',
+                        color: CATEGORY_COLORS[t.category] || '#71717a',
+                        fontSize: 11,
+                      }}>
+                        {t.emoji} {t.category}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
 
               {pageCount > 1 && (
                 <div className="pagination">
