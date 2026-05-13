@@ -20,6 +20,7 @@ export default function Transactions() {
   }
   const [search, setSearch] = useState('')
   const [filterCategory, setFilterCategory] = useState('all')
+  const [filterAccount, setFilterAccount] = useState('all')
   const [filterType, setFilterType] = useState('all')
   const [filterMonth, setFilterMonth] = useState('all')
   const [sortBy, setSortBy] = useState('date_desc')
@@ -29,6 +30,10 @@ export default function Transactions() {
 
   const categories = useMemo(() => Object.keys(stats.byCategory), [stats.byCategory])
   const months = useMemo(() => Object.keys(stats.byMonth).sort().reverse(), [stats.byMonth])
+  const accounts = useMemo(() => {
+    const set = new Set(transactions.map(t => t.account).filter(Boolean))
+    return [...set].sort()
+  }, [transactions])
 
   const filtered = useMemo(() => {
     let list = transactions
@@ -38,12 +43,17 @@ export default function Transactions() {
       list = list.filter(t =>
         t.label.toLowerCase().includes(s) ||
         t.merchant.toLowerCase().includes(s) ||
-        t.category.toLowerCase().includes(s)
+        t.category.toLowerCase().includes(s) ||
+        (t.account || '').toLowerCase().includes(s)
       )
     }
 
     if (filterCategory !== 'all') {
       list = list.filter(t => t.category === filterCategory)
+    }
+
+    if (filterAccount !== 'all') {
+      list = list.filter(t => t.account === filterAccount)
     }
 
     if (filterType === 'income') list = list.filter(t => t.amount > 0)
@@ -83,8 +93,8 @@ export default function Transactions() {
   }
 
   const resetFilters = () => {
-    setSearch(''); setFilterCategory('all'); setFilterType('all')
-    setFilterMonth('all'); setPage(0)
+    setSearch(''); setFilterCategory('all'); setFilterAccount('all')
+    setFilterType('all'); setFilterMonth('all'); setPage(0)
   }
 
   if (!transactions.length) {
@@ -150,6 +160,13 @@ export default function Transactions() {
               {categories.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
 
+            {accounts.length > 0 && (
+              <select className="filter-select" value={filterAccount} onChange={e => { setFilterAccount(e.target.value); setPage(0) }}>
+                <option value="all">Tous les comptes</option>
+                {accounts.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            )}
+
             <select className="filter-select" value={filterType} onChange={e => { setFilterType(e.target.value); setPage(0) }}>
               <option value="all">Tous types</option>
               <option value="income">Revenus</option>
@@ -209,12 +226,19 @@ export default function Transactions() {
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{t.label.slice(0, 60)}</div>
                       </td>
                       <td>
-                        <span className="category-badge" style={{
-                          background: (CATEGORY_COLORS[t.category] || '#71717a') + '20',
-                          color: CATEGORY_COLORS[t.category] || '#71717a',
-                        }}>
-                          {t.emoji} {t.category}
-                        </span>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <span className="category-badge" style={{
+                            background: (CATEGORY_COLORS[t.category] || '#71717a') + '20',
+                            color: CATEGORY_COLORS[t.category] || '#71717a',
+                          }}>
+                            {t.emoji} {t.category}
+                          </span>
+                          {t.account && (
+                            <span style={{ fontSize: 11, color: 'var(--text-muted)', paddingLeft: 2 }}>
+                              {t.account}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td style={{ textAlign: 'right', whiteSpace: 'nowrap', position: 'relative' }}>
                         <span className={t.amount >= 0 ? 'amount-positive' : 'amount-negative'}>
@@ -265,7 +289,10 @@ export default function Transactions() {
                       </span>
                     </div>
                     <div className="tx-card-row" style={{ marginTop: 6 }}>
-                      <span className="tx-card-date">{formatDate(t.date)}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                        <span className="tx-card-date">{formatDate(t.date)}</span>
+                        {t.account && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{t.account}</span>}
+                      </div>
                       <span className="category-badge" style={{
                         background: (CATEGORY_COLORS[t.category] || '#71717a') + '20',
                         color: CATEGORY_COLORS[t.category] || '#71717a',

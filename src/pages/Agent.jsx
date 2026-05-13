@@ -62,6 +62,10 @@ export default function Agent() {
           type: 'string',
           description: 'Nom du marchand ou de la source (ex: "Carrefour", "Salaire entreprise")',
         },
+        account: {
+          type: 'string',
+          description: 'Nom du compte Sumeria (ex: "Perso", "Courses", "A deux"). Utilise "Perso" par défaut si non précisé.',
+        },
         amount: {
           type: 'number',
           description: 'Montant en euros. Négatif pour une dépense (ex: -24.90), positif pour un revenu (ex: 2500)',
@@ -161,7 +165,21 @@ export default function Agent() {
 
     const recentTx = transactions
       .slice(0, 20)
-      .map(t => `${t.date} | ${t.merchant} | ${formatAmount(t.amount)} | ${t.category}`)
+      .map(t => `${t.date} | ${t.account || 'Perso'} | ${t.merchant} | ${formatAmount(t.amount)} | ${t.category}`)
+      .join('\n')
+
+    // Per-account breakdown (exclude transfers)
+    const byAccount = {}
+    for (const t of transactions) {
+      if (t.category === 'Transfert interne') continue
+      const acc = t.account || 'Inconnu'
+      if (!byAccount[acc]) byAccount[acc] = { income: 0, expenses: 0 }
+      if (t.amount > 0) byAccount[acc].income += t.amount
+      else byAccount[acc].expenses += Math.abs(t.amount)
+    }
+    const accountBreakdown = Object.entries(byAccount)
+      .sort((a, b) => b[1].expenses - a[1].expenses)
+      .map(([acc, v]) => `${acc}: revenus ${formatAmount(v.income)}, dépenses ${formatAmount(v.expenses)}`)
       .join('\n')
 
     return `=== RÉSUMÉ FINANCIER ===
@@ -169,13 +187,16 @@ export default function Agent() {
 CHIFFRES CLÉS :
 ${keyStats}
 
+RÉPARTITION PAR COMPTE :
+${accountBreakdown || 'Aucune donnée par compte'}
+
 TOP 10 MARCHANDS (par dépenses cumulées) :
 ${topMerchants}
 
 ÉVOLUTION MENSUELLE PAR CATÉGORIE (6 derniers mois) :
 ${monthlyBreakdown}
 
-20 DERNIÈRES TRANSACTIONS :
+20 DERNIÈRES TRANSACTIONS (Date | Compte | Marchand | Montant | Catégorie) :
 ${recentTx}`
   }
 
@@ -183,7 +204,7 @@ ${recentTx}`
   const executeTool = async (name, input) => {
     if (name !== 'add_transaction') return { success: false, error: 'Outil inconnu' }
 
-    const { merchant, amount, category } = input
+    const { merchant, amount, category, account = 'Perso' } = input
 
     // Normalize date to YYYY-MM-DD (Supabase requires ISO format)
     let date = input.date
@@ -207,6 +228,7 @@ ${recentTx}`
       amount,
       category,
       emoji,
+      account: account || 'Perso',
       balance: null,
     }
     const { error } = await addTransactions([tx])

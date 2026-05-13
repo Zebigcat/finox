@@ -92,7 +92,16 @@ function detectFormat(headers) {
 // Sumeria bank exports have 9 metadata lines before the actual header row
 const SUMERIA_METADATA_LINES = 9
 
+// Try to detect account name from CSV filename (e.g. "Perso.csv" → "Perso")
+function accountFromFilename(filename) {
+  const name = filename.replace(/\.[^.]+$/, '').trim()
+  const known = ['Perso', 'Réserve', 'Reserve', 'Courses', 'Charges Fixes', 'A deux', 'Saint-Mo', 'Loyer', 'Tribunal']
+  const match = known.find(k => name.toLowerCase().includes(k.toLowerCase()))
+  return match || name || null
+}
+
 export function parseSumeriaCSV(file) {
+  const account = accountFromFilename(file.name)
   return new Promise((resolve, reject) => {
     Papa.parse(file, {
       header: true,
@@ -164,6 +173,7 @@ export function parseSumeriaCSV(file) {
               amount,
               category,
               emoji,
+              account,
               balance: balanceKey ? parseAmount(row[balanceKey]) : null,
             })
           })

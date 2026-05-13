@@ -117,6 +117,7 @@ function buildTransaction(tx, accountName, index) {
     amount: tx.amount,
     category,
     emoji,
+    account: accountName,
     balance: null,
   }
 }

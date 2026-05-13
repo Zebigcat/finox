@@ -10,6 +10,7 @@ const DEFAULT_FORM = {
   description: '',
   amount: '',
   category: 'Autre',
+  account: '',
 }
 
 export default function AddTransactionModal({ onClose, transaction }) {
@@ -25,6 +26,7 @@ export default function AddTransactionModal({ onClose, transaction }) {
         description: transaction.label,
         amount: String(Math.abs(transaction.amount)),
         category: transaction.category,
+        account: transaction.account || '',
       }
     }
     return { ...DEFAULT_FORM, date: today() }
@@ -59,6 +61,8 @@ export default function AddTransactionModal({ onClose, transaction }) {
     const emoji = allCategories.find(c => c.name === finalCategory)?.emoji || '🔁'
     const finalSigned = form.type === 'transfer' ? -Math.abs(amt) : signed
 
+    const account = form.account.trim() || null
+
     if (isEdit) {
       updateTransaction({
         ...transaction,
@@ -68,6 +72,7 @@ export default function AddTransactionModal({ onClose, transaction }) {
         amount: finalSigned,
         category: finalCategory,
         emoji,
+        account,
       })
     } else {
       addTransactions([{
@@ -78,6 +83,7 @@ export default function AddTransactionModal({ onClose, transaction }) {
         amount: finalSigned,
         category: finalCategory,
         emoji,
+        account,
         balance: null,
       }])
     }
@@ -205,6 +211,19 @@ export default function AddTransactionModal({ onClose, transaction }) {
                 </select>
               </div>
             )}
+
+            <div className="form-group">
+              <label className="form-label" htmlFor="tx-account">Compte <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(optionnel)</span></label>
+              <input
+                id="tx-account"
+                className="form-input"
+                type="text"
+                placeholder="Ex : Perso, Courses, A deux…"
+                value={form.account}
+                onChange={e => set('account', e.target.value)}
+                maxLength={50}
+              />
+            </div>
 
             {error && (
               <p className="form-error">{error}</p>

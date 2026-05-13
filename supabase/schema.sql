@@ -12,6 +12,7 @@ create table if not exists public.transactions (
   amount     numeric(12, 2) not null,
   type       text           not null check (type in ('income', 'expense')),
   cat        text           not null default 'Autre',
+  account    text           default null,
   created_at timestamptz    not null default now()
 );
 

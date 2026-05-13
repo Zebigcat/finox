@@ -33,6 +33,7 @@ function makeRowToTx(customCats) {
       type:     row.type,
       category: row.cat,
       emoji:    getEmojiFromAll(row.cat, customCats),
+      account:  row.account || null,
       balance:  null,
     }
   }
@@ -44,9 +45,10 @@ function txToRow(tx, userId) {
     user_id: userId,
     date:    tx.date,
     label:   tx.label,
-    amount:  Math.abs(tx.amount),         // store absolute value; type carries the sign
+    amount:  Math.abs(tx.amount),
     type:    tx.amount >= 0 ? 'income' : 'expense',
     cat:     tx.category ?? 'Autre',
+    account: tx.account || null,
   }
 }
 
@@ -191,7 +193,7 @@ export function FinanceProvider({ children }) {
     const row = txToRow(tx, user.id)
     const { error } = await supabase
       .from('transactions')
-      .update({ date: row.date, label: row.label, amount: row.amount, type: row.type, cat: row.cat })
+      .update({ date: row.date, label: row.label, amount: row.amount, type: row.type, cat: row.cat, account: row.account })
       .eq('id', tx.id)
 
     if (error) {
