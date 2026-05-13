@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Search, Filter, Download, Plus, Pencil, Trash2 } from 'lucide-react'
+import { Search, Filter, Download, Plus, Pencil, Trash2, Copy } from 'lucide-react'
 import { useFinance } from '../context/FinanceContext'
 import { formatAmount, formatDate, CATEGORY_COLORS } from '../utils/csvParser'
 import AddTransactionModal from '../components/AddTransactionModal'
@@ -7,7 +7,17 @@ import AddTransactionModal from '../components/AddTransactionModal'
 const PAGE_SIZE = 50
 
 export default function Transactions() {
-  const { transactions, stats, deleteTransaction } = useFinance()
+  const { transactions, stats, deleteTransaction, addTransactions } = useFinance()
+
+  const duplicateTransaction = (t) => {
+    const today = new Date().toISOString().slice(0, 10)
+    addTransactions([{
+      ...t,
+      id: `dup-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      date: today,
+      balance: null,
+    }])
+  }
   const [search, setSearch] = useState('')
   const [filterCategory, setFilterCategory] = useState('all')
   const [filterType, setFilterType] = useState('all')
@@ -213,6 +223,13 @@ export default function Transactions() {
                         <span className="tx-row-actions">
                           <button
                             className="btn-icon"
+                            title="Dupliquer"
+                            onClick={() => duplicateTransaction(t)}
+                          >
+                            <Copy size={13} />
+                          </button>
+                          <button
+                            className="btn-icon"
                             title="Modifier"
                             onClick={() => setEditTx(t)}
                           >
@@ -258,6 +275,9 @@ export default function Transactions() {
                       </span>
                     </div>
                     <div className="tx-card-row" style={{ marginTop: 8, justifyContent: 'flex-end', gap: 8 }}>
+                      <button className="btn-icon" title="Dupliquer" onClick={() => duplicateTransaction(t)}>
+                        <Copy size={14} />
+                      </button>
                       <button className="btn-icon" title="Modifier" onClick={() => setEditTx(t)}>
                         <Pencil size={14} />
                       </button>
