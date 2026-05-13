@@ -27,7 +27,7 @@ export function getCategoryEmoji(category) {
 
 export const CATEGORIES = CATEGORY_RULES.map(r => ({ name: r.category, emoji: r.emoji }))
 
-function categorize(label) {
+export function categorize(label) {
   const lower = label.toLowerCase()
   for (const rule of CATEGORY_RULES) {
     if (rule.keywords.some(kw => lower.includes(kw))) {

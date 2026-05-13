@@ -1,29 +1,43 @@
 import { useState, useRef } from 'react'
-import { Upload, CheckCircle, AlertCircle, FileText, Trash2, Files } from 'lucide-react'
+import { Upload, CheckCircle, AlertCircle, FileText, Trash2, Files, FilePlus } from 'lucide-react'
 import { useFinance } from '../context/FinanceContext'
 import { parseSumeriaCSV, formatAmount, formatDate } from '../utils/csvParser'
+import { parseSumeriaPDF } from '../utils/pdfParser'
 
 export default function Import() {
   const { addTransactions, clearTransactions, transactions } = useFinance()
   const [dragging, setDragging] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState(null) // { success, message, errors? }
-  const [preview, setPreview] = useState(null) // { fileResults, txs, dupCount }
+  const [result, setResult] = useState(null)
+  const [preview, setPreview] = useState(null)
   const fileRef = useRef()
 
   const handleFiles = async (files) => {
-    const csvFiles = Array.from(files).filter(f => f.name.endsWith('.csv') || f.type.includes('csv'))
-    if (!csvFiles.length) {
-      setResult({ success: false, message: 'Veuillez sélectionner des fichiers CSV.' })
+    const validFiles = Array.from(files).filter(f =>
+      f.name.endsWith('.csv') || f.name.endsWith('.pdf') ||
+      f.type.includes('csv') || f.type === 'application/pdf'
+    )
+    if (!validFiles.length) {
+      setResult({ success: false, message: 'Veuillez sélectionner des fichiers CSV ou PDF Sumeria.' })
       return
     }
+
     setLoading(true)
     setResult(null)
     setPreview(null)
 
     try {
       const settled = await Promise.allSettled(
-        csvFiles.map(f => parseSumeriaCSV(f).then(txs => ({ filename: f.name, txs })))
+        validFiles.map(async f => {
+          const isPDF = f.name.toLowerCase().endsWith('.pdf') || f.type === 'application/pdf'
+          if (isPDF) {
+            const { accountName, transactions } = await parseSumeriaPDF(f)
+            return { filename: f.name, accountName, txs: transactions, isPDF: true }
+          } else {
+            const txs = await parseSumeriaCSV(f)
+            return { filename: f.name, accountName: null, txs, isPDF: false }
+          }
+        })
       )
 
       const fileResults = []
@@ -32,10 +46,15 @@ export default function Import() {
 
       for (const r of settled) {
         if (r.status === 'fulfilled') {
-          fileResults.push({ filename: r.value.filename, count: r.value.txs.length })
+          fileResults.push({
+            filename: r.value.filename,
+            accountName: r.value.accountName,
+            count: r.value.txs.length,
+            isPDF: r.value.isPDF,
+          })
           allTxs.push(...r.value.txs)
         } else {
-          errors.push(r.reason.message)
+          errors.push(r.reason?.message || 'Erreur inconnue')
         }
       }
 
@@ -44,7 +63,7 @@ export default function Import() {
         return
       }
 
-      // Deduplicate across files by date + label + amount
+      // Dedup by date + label + amount
       const seen = new Set()
       const dedupedTxs = allTxs.filter(t => {
         const key = `${t.date}|${t.label}|${t.amount}`
@@ -54,7 +73,6 @@ export default function Import() {
       })
 
       const dupCount = allTxs.length - dedupedTxs.length
-
       setPreview({ fileResults, txs: dedupedTxs, dupCount })
 
       const label = fileResults.length === 1
@@ -95,8 +113,8 @@ export default function Import() {
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Importer des fichiers CSV</h1>
-        <p className="page-subtitle">Compatible avec les exports Sumeria (Orange Bank)</p>
+        <h1 className="page-title">Importer des relevés</h1>
+        <p className="page-subtitle">CSV ou PDF Sumeria — plusieurs fichiers supportés</p>
       </div>
 
       <div className="page-content">
@@ -115,19 +133,19 @@ export default function Import() {
                 {loading ? <Upload size={24} /> : <Files size={24} />}
               </div>
               <div className="import-zone-title">
-                {loading ? 'Analyse en cours…' : 'Glissez vos fichiers CSV ici'}
+                {loading ? 'Analyse en cours…' : 'Glissez vos fichiers ici'}
               </div>
               <div className="import-zone-sub">
                 ou cliquez pour sélectionner un ou plusieurs fichiers
               </div>
               <div className="import-zone-sub" style={{ marginTop: 8 }}>
-                Format accepté : CSV Sumeria / Orange Bank · Plusieurs fichiers supportés
+                Formats acceptés : <strong>PDF Sumeria</strong> · <strong>CSV Sumeria</strong> · Plusieurs fichiers simultanés
               </div>
             </div>
             <input
               ref={fileRef}
               type="file"
-              accept=".csv"
+              accept=".csv,.pdf"
               multiple
               style={{ display: 'none' }}
               onChange={e => handleFiles(e.target.files)}
@@ -171,7 +189,7 @@ export default function Import() {
               <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 12 }}>
                 {transactions.length === 0
                   ? 'Aucune transaction importée.'
-                  : `${transactions.length} transactions stockées localement.`}
+                  : `${transactions.length} transactions stockées.`}
               </div>
               {transactions.length > 0 && (
                 <button
@@ -192,31 +210,29 @@ export default function Import() {
             {/* Format info */}
             <div className="card">
               <div className="card-header">
-                <span className="card-title">Format attendu</span>
+                <span className="card-title">Formats supportés</span>
               </div>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.7 }}>
-                Le fichier CSV Sumeria doit contenir les colonnes suivantes (dans n'importe quel ordre) :
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {[
-                  ['Date', 'Date de l\'opération (JJ/MM/AAAA)'],
-                  ['Libellé', 'Description de la transaction'],
-                  ['Débit / Crédit', 'Montant en euros (séparés ou combinés)'],
-                  ['Solde', 'Solde du compte (optionnel)'],
-                ].map(([col, desc]) => (
-                  <div key={col} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-                    <span style={{
-                      background: 'var(--bg-hover)',
-                      padding: '2px 8px',
-                      borderRadius: 4,
-                      fontFamily: 'monospace',
-                      fontSize: 12,
-                      color: 'var(--accent-light)',
-                      whiteSpace: 'nowrap',
-                    }}>{col}</span>
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{desc}</span>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <FilePlus size={14} /> PDF Sumeria
                   </div>
-                ))}
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                    Relevés de compte mensuels exportés depuis Sumeria (ex-Lydia).
+                    Le nom du compte (Perso, Réserve, Courses…) est détecté automatiquement.
+                    Les virements internes entre comptes sont exclus des statistiques.
+                  </p>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <FileText size={14} /> CSV Sumeria
+                  </div>
+                  <p style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                    Export CSV depuis l'historique Sumeria (colonnes Date, Libellé, Montant, Solde).
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -229,9 +245,6 @@ export default function Import() {
               <span className="card-title">
                 <FileText size={14} style={{ display: 'inline', marginRight: 6 }} />
                 Aperçu
-                {preview.fileResults.length > 1
-                  ? ` — ${preview.fileResults.length} fichiers`
-                  : ` — ${preview.fileResults[0].filename}`}
               </span>
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                 {preview.txs.length} transactions
@@ -239,28 +252,26 @@ export default function Import() {
               </span>
             </div>
 
-            {/* Per-file breakdown when multiple files */}
-            {preview.fileResults.length > 1 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-                {preview.fileResults.map(({ filename, count }) => (
-                  <span key={filename} style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    background: 'var(--bg-hover)',
-                    border: '1px solid var(--border)',
-                    borderRadius: 6,
-                    padding: '3px 10px',
-                    fontSize: 12,
-                    color: 'var(--text-secondary)',
-                  }}>
-                    <FileText size={11} />
-                    {filename}
-                    <span style={{ color: 'var(--text-muted)' }}>({count})</span>
-                  </span>
-                ))}
-              </div>
-            )}
+            {/* Per-file breakdown */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+              {preview.fileResults.map(({ filename, accountName, count, isPDF }) => (
+                <span key={filename} style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  background: 'var(--bg-hover)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 6,
+                  padding: '3px 10px',
+                  fontSize: 12,
+                  color: 'var(--text-secondary)',
+                }}>
+                  {isPDF ? <FilePlus size={11} /> : <FileText size={11} />}
+                  {accountName ? <strong style={{ color: 'var(--text-primary)' }}>{accountName}</strong> : filename}
+                  <span style={{ color: 'var(--text-muted)' }}>({count})</span>
+                </span>
+              ))}
+            </div>
 
             <table className="transactions-table">
               <thead>
