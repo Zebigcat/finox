@@ -191,7 +191,8 @@ export function FinanceProvider({ children }) {
     const row = txToRow(tx, user.id)
     const { error } = await supabase
       .from('transactions')
-      .upsert(row, { onConflict: 'id' })
+      .update({ date: row.date, label: row.label, amount: row.amount, type: row.type, cat: row.cat })
+      .eq('id', tx.id)
 
     if (error) {
       console.error('Erreur update transaction:', error.message)
