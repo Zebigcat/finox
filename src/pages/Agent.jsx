@@ -183,7 +183,21 @@ ${recentTx}`
   const executeTool = async (name, input) => {
     if (name !== 'add_transaction') return { success: false, error: 'Outil inconnu' }
 
-    const { merchant, amount, date, category } = input
+    const { merchant, amount, category } = input
+
+    // Normalize date to YYYY-MM-DD (Supabase requires ISO format)
+    let date = input.date
+    if (date) {
+      const parsed = new Date(date)
+      if (!isNaN(parsed.getTime())) {
+        date = parsed.toISOString().slice(0, 10)
+      } else {
+        date = new Date().toISOString().slice(0, 10)
+      }
+    } else {
+      date = new Date().toISOString().slice(0, 10)
+    }
+
     const emoji = allCategories.find(c => c.name === category)?.emoji || '📦'
     const tx = {
       id: `agent-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -196,7 +210,10 @@ ${recentTx}`
       balance: null,
     }
     const { error } = await addTransactions([tx])
-    if (error) return { success: false, error }
+    if (error) {
+      console.error('[Agent] addTransactions error:', error)
+      return { success: false, error }
+    }
     return { success: true, transaction: { merchant, amount, date, category } }
   }
 
@@ -245,6 +262,7 @@ ${recentTx}`
             type: 'tool_result',
             tool_use_id: block.id,
             content: JSON.stringify(result),
+            ...(result.success === false && { is_error: true }),
           })
         }
 
