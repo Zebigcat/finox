@@ -30,7 +30,8 @@ const SUGGESTIONS = [
   'Quelles dépenses semblent inhabituelles ?',
 ]
 
-const STORAGE_KEY = 'finox-agent-messages'
+// Bump this version when tool capabilities change — clears stale history automatically
+const STORAGE_KEY = 'finox-agent-messages-v2'
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -179,7 +180,7 @@ ${recentTx}`
   }
 
   // ── Execute add_transaction tool ─────────────────────────────────────────
-  const executeTool = (name, input) => {
+  const executeTool = async (name, input) => {
     if (name !== 'add_transaction') return { success: false, error: 'Outil inconnu' }
 
     const { merchant, amount, date, category } = input
@@ -194,8 +195,9 @@ ${recentTx}`
       emoji,
       balance: null,
     }
-    addTransactions([tx])
-    return { success: true, transaction: tx }
+    const { error } = await addTransactions([tx])
+    if (error) return { success: false, error }
+    return { success: true, transaction: { merchant, amount, date, category } }
   }
 
   // ── Send chat message ────────────────────────────────────────────────────
@@ -238,7 +240,7 @@ ${recentTx}`
         const toolResults = []
 
         for (const block of toolUseBlocks) {
-          const result = executeTool(block.name, block.input)
+          const result = await executeTool(block.name, block.input)
           toolResults.push({
             type: 'tool_result',
             tool_use_id: block.id,

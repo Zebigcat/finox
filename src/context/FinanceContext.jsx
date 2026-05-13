@@ -155,11 +155,11 @@ export function FinanceProvider({ children }) {
 
   // ── addTransactions ─────────────────────────────────────────────────────────
   const addTransactions = async (newTxs) => {
-    if (!user) return
+    if (!user) return { error: 'Utilisateur non connecté' }
 
     const existingIds = new Set(transactions.map(t => t.id))
     const unique = newTxs.filter(t => !existingIds.has(t.id))
-    if (!unique.length) return
+    if (!unique.length) return { error: null }
 
     // Optimistic update
     setTransactions(prev =>
@@ -173,9 +173,10 @@ export function FinanceProvider({ children }) {
 
     if (error) {
       console.error('Erreur insert transactions:', error.message)
-      // Rollback optimistic update
       setTransactions(prev => prev.filter(t => !unique.some(u => u.id === t.id)))
     }
+
+    return { error: error?.message ?? null }
   }
 
   // ── updateTransaction ───────────────────────────────────────────────────────
