@@ -28,5 +28,8 @@ create policy "select_own" on public.transactions
 create policy "insert_own" on public.transactions
   for insert with check (auth.uid() = user_id);
 
+create policy "update_own" on public.transactions
+  for update using (auth.uid() = user_id);
+
 create policy "delete_own" on public.transactions
   for delete using (auth.uid() = user_id);
