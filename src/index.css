@@ -1190,6 +1190,37 @@ a { text-decoration: none; color: inherit; }
 }
 .modal-close:hover { background: var(--bg-hover); color: var(--text-primary); }
 
+/* ─── Transaction row actions (hover overlay) ────────────────────────────── */
+.tx-row-actions {
+  display: none;
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  gap: 6px;
+  align-items: center;
+  background: var(--bg-card);
+  padding-left: 8px;
+}
+.tx-row:hover .tx-row-actions { display: flex; }
+
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+  padding: 0;
+}
+.btn-icon:hover { background: #2e2e42; color: var(--text-primary); border-color: #4a4a62; }
+.btn-icon-danger:hover { background: rgba(248,113,113,0.12); color: var(--red); border-color: var(--red); }
+
 .modal-body {
   padding: 20px;
   display: flex;

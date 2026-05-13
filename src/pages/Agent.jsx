@@ -37,7 +37,7 @@ function renderMarkdown(content) {
 }
 
 export default function Agent() {
-  const { apiKey, transactions, stats, addTransactions } = useFinance()
+  const { apiKey, transactions, stats, addTransactions, realBalance, referenceBalance } = useFinance()
   const [messages, setMessages] = useState([
     {
       role: 'assistant',
@@ -58,46 +58,75 @@ export default function Agent() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
 
-  // ── Financial context ────────────────────────────────────────────────────
+  // ── Financial context (smart summary — ~80% fewer tokens than raw list) ──
   const buildContext = () => {
     if (!transactions.length) return 'Aucune transaction disponible.'
 
-    const topCategories = Object.entries(stats.byCategory)
-      .sort((a, b) => b[1].expenses - a[1].expenses)
-      .slice(0, 6)
-      .map(([k, v]) => `${k}: ${formatAmount(v.expenses)}`)
+    const savingsRate = stats.totalIncome > 0
+      ? ((stats.totalIncome - stats.totalExpenses) / stats.totalIncome * 100).toFixed(1)
+      : '0.0'
 
+    // --- Key stats ---
+    const keyStats = [
+      `Solde actuel : ${formatAmount(realBalance)} (ref. ${formatAmount(referenceBalance.amount)} au ${referenceBalance.date})`,
+      `Revenus totaux : ${formatAmount(stats.totalIncome)}`,
+      `Dépenses totales : ${formatAmount(stats.totalExpenses)}`,
+      `Taux d'épargne : ${savingsRate}%`,
+      `Nombre de transactions : ${stats.count}`,
+    ].join('\n')
+
+    // --- Top 10 merchants ---
     const topMerchants = Object.entries(stats.byMerchant)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([k, v]) => `${k}: ${formatAmount(v)}`)
+      .slice(0, 10)
+      .map(([k, v], i) => `${i + 1}. ${k}: ${formatAmount(v)}`)
+      .join('\n')
 
-    const months = Object.keys(stats.byMonth).sort().slice(-3)
-    const monthlyData = months.map(m => {
-      const d = stats.byMonth[m]
+    // --- Monthly totals by category (last 6 months) ---
+    const sortedMonths = Object.keys(stats.byMonth).sort().slice(-6)
+
+    // Build per-month category breakdown from raw transactions
+    const monthlyCatMap = {}
+    for (const t of transactions) {
+      const month = t.date.slice(0, 7)
+      if (!sortedMonths.includes(month)) continue
+      if (!monthlyCatMap[month]) monthlyCatMap[month] = {}
+      const cat = t.category || 'Autre'
+      if (!monthlyCatMap[month][cat]) monthlyCatMap[month][cat] = 0
+      monthlyCatMap[month][cat] += t.amount
+    }
+
+    const monthlyBreakdown = sortedMonths.map(m => {
       const [y, mo] = m.split('-')
       const label = new Date(y, mo - 1).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })
-      return `${label}: revenus ${formatAmount(d.income)}, dépenses ${formatAmount(d.expenses)}`
-    })
+      const totals = stats.byMonth[m]
+      const cats = Object.entries(monthlyCatMap[m] || {})
+        .filter(([, v]) => v < 0)
+        .sort((a, b) => a[1] - b[1])
+        .map(([k, v]) => `    ${k}: ${formatAmount(v)}`)
+        .join('\n')
+      return `${label} — revenus ${formatAmount(totals.income)}, dépenses ${formatAmount(totals.expenses)}${cats ? '\n' + cats : ''}`
+    }).join('\n\n')
 
-    return `DONNÉES FINANCIÈRES :
-- Transactions : ${stats.count}
-- Revenus totaux : ${formatAmount(stats.totalIncome)}
-- Dépenses totales : ${formatAmount(stats.totalExpenses)}
-- Solde net : ${formatAmount(stats.balance)}
-- Taux d'épargne : ${stats.totalIncome > 0 ? ((stats.balance / stats.totalIncome) * 100).toFixed(1) : 0}%
+    // --- Last 20 transactions ---
+    const recentTx = transactions
+      .slice(0, 20)
+      .map(t => `${t.date} | ${t.merchant} | ${formatAmount(t.amount)} | ${t.category}`)
+      .join('\n')
 
-TOP CATÉGORIES :
-${topCategories.join('\n')}
+    return `=== RÉSUMÉ FINANCIER ===
 
-TOP MARCHANDS :
-${topMerchants.join('\n')}
+CHIFFRES CLÉS :
+${keyStats}
 
-DERNIERS MOIS :
-${monthlyData.join('\n')}
+TOP 10 MARCHANDS (par dépenses cumulées) :
+${topMerchants}
 
-10 DERNIÈRES TRANSACTIONS :
-${transactions.slice(0, 10).map(t => `- ${t.date} | ${t.merchant} | ${formatAmount(t.amount)} | ${t.category}`).join('\n')}`
+ÉVOLUTION MENSUELLE PAR CATÉGORIE (6 derniers mois) :
+${monthlyBreakdown}
+
+20 DERNIÈRES TRANSACTIONS :
+${recentTx}`
   }
 
   // ── Send chat message ────────────────────────────────────────────────────

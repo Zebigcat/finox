@@ -3,15 +3,27 @@ import { Save, Eye, EyeOff, CheckCircle, ExternalLink, LogOut, User } from 'luci
 import { useFinance } from '../context/FinanceContext'
 
 export default function Settings() {
-  const { apiKey, setApiKey, user, signOut } = useFinance()
+  const { apiKey, setApiKey, user, signOut, referenceBalance, setReferenceBalance } = useFinance()
   const [localKey, setLocalKey] = useState(apiKey)
   const [showKey, setShowKey] = useState(false)
   const [saved, setSaved] = useState(false)
+
+  const [refAmount, setRefAmount] = useState(referenceBalance.amount)
+  const [refDate,   setRefDate]   = useState(referenceBalance.date)
+  const [refSaved,  setRefSaved]  = useState(false)
 
   const handleSave = () => {
     setApiKey(localKey.trim())
     setSaved(true)
     setTimeout(() => setSaved(false), 3000)
+  }
+
+  const handleSaveRef = () => {
+    const amount = parseFloat(refAmount)
+    if (isNaN(amount) || !refDate) return
+    setReferenceBalance({ amount, date: refDate })
+    setRefSaved(true)
+    setTimeout(() => setRefSaved(false), 3000)
   }
 
   return (
@@ -45,6 +57,58 @@ export default function Settings() {
               </div>
               <button className="btn btn-secondary" onClick={signOut} style={{ flexShrink: 0, color: 'var(--red)', borderColor: 'rgba(248,113,113,0.3)' }}>
                 <LogOut size={14} /> Déconnexion
+              </button>
+            </div>
+          </div>
+
+          {/* Reference balance section */}
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-header" style={{ marginBottom: 20 }}>
+              <span className="card-title">Solde de référence</span>
+            </div>
+
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.7 }}>
+              Définissez un solde connu à une date précise. Finox calculera votre solde réel en ajoutant
+              toutes les transactions postérieures à cette date.
+            </p>
+
+            {refSaved && (
+              <div className="success-notice" style={{ marginBottom: 16 }}>
+                <CheckCircle size={16} />
+                Solde de référence mis à jour !
+              </div>
+            )}
+
+            <div className="settings-form">
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <div className="form-group" style={{ flex: '1 1 140px' }}>
+                  <label className="form-label">Montant (€)</label>
+                  <input
+                    className="form-input"
+                    type="number"
+                    step="0.01"
+                    value={refAmount}
+                    onChange={e => setRefAmount(e.target.value)}
+                    placeholder="2.00"
+                  />
+                </div>
+                <div className="form-group" style={{ flex: '1 1 160px' }}>
+                  <label className="form-label">Date de référence</label>
+                  <input
+                    className="form-input"
+                    type="date"
+                    value={refDate}
+                    onChange={e => setRefDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <button
+                className="btn btn-primary"
+                onClick={handleSaveRef}
+                disabled={!refDate || refAmount === ''}
+              >
+                <Save size={16} /> Sauvegarder
               </button>
             </div>
           </div>

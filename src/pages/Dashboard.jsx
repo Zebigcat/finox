@@ -24,7 +24,7 @@ const CHART_DEFAULTS = {
 }
 
 export default function Dashboard() {
-  const { transactions, stats } = useFinance()
+  const { transactions, stats, realBalance, referenceBalance } = useFinance()
   const [showModal, setShowModal] = useState(false)
 
   const monthlyChartData = useMemo(() => {
@@ -165,12 +165,12 @@ export default function Dashboard() {
             <div className="stat-card-icon" style={{ background: 'var(--blue-bg)' }}>
               <Wallet size={20} color="var(--blue)" />
             </div>
-            <div className="stat-card-label">Solde net</div>
-            <div className="stat-card-value" style={{ color: stats.balance >= 0 ? 'var(--green)' : 'var(--red)' }}>
-              {formatAmount(stats.balance)}
+            <div className="stat-card-label">Solde actuel</div>
+            <div className="stat-card-value" style={{ color: realBalance >= 0 ? 'var(--green)' : 'var(--red)' }}>
+              {formatAmount(realBalance)}
             </div>
-            <div className={`stat-card-change ${stats.balance >= 0 ? 'positive' : 'negative'}`}>
-              {stats.balance >= 0 ? 'Positif' : 'Négatif'}
+            <div className="stat-card-change" style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+              Depuis le {new Date(referenceBalance.date + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </div>
           </div>
 

@@ -1,25 +1,37 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Plus, TrendingDown, TrendingUp } from 'lucide-react'
+import { X, Plus, TrendingDown, TrendingUp, Pencil } from 'lucide-react'
 import { useFinance } from '../context/FinanceContext'
 import { CATEGORIES, getCategoryEmoji } from '../utils/csvParser'
 
 const today = () => new Date().toISOString().slice(0, 10)
 
 const DEFAULT_FORM = {
-  type: 'expense',   // 'expense' | 'income'
+  type: 'expense',
   date: today(),
   description: '',
   amount: '',
   category: 'Autre',
 }
 
-export default function AddTransactionModal({ onClose }) {
-  const { addTransactions } = useFinance()
-  const [form, setForm] = useState({ ...DEFAULT_FORM, date: today() })
+export default function AddTransactionModal({ onClose, transaction }) {
+  const { addTransactions, updateTransaction } = useFinance()
+  const isEdit = !!transaction
+
+  const [form, setForm] = useState(() => {
+    if (isEdit) {
+      return {
+        type: transaction.amount >= 0 ? 'income' : 'expense',
+        date: transaction.date,
+        description: transaction.label,
+        amount: String(Math.abs(transaction.amount)),
+        category: transaction.category,
+      }
+    }
+    return { ...DEFAULT_FORM, date: today() }
+  })
   const [error, setError] = useState('')
   const descRef = useRef(null)
 
-  // Auto-focus description on mount, close on Escape
   useEffect(() => {
     descRef.current?.focus()
     const onKey = (e) => { if (e.key === 'Escape') onClose() }
@@ -43,35 +55,42 @@ export default function AddTransactionModal({ onClose }) {
 
     const signed = form.type === 'expense' ? -Math.abs(amt) : Math.abs(amt)
 
-    const tx = {
-      id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      date: form.date,
-      label: desc,
-      merchant: desc,
-      amount: signed,
-      category: form.category,
-      emoji: getCategoryEmoji(form.category),
-      balance: null,
+    if (isEdit) {
+      updateTransaction({
+        ...transaction,
+        date: form.date,
+        label: desc,
+        merchant: desc,
+        amount: signed,
+        category: form.category,
+        emoji: getCategoryEmoji(form.category),
+      })
+    } else {
+      addTransactions([{
+        id: `manual-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        date: form.date,
+        label: desc,
+        merchant: desc,
+        amount: signed,
+        category: form.category,
+        emoji: getCategoryEmoji(form.category),
+        balance: null,
+      }])
     }
-
-    addTransactions([tx])
     onClose()
   }
 
   return (
     <>
-      {/* Backdrop */}
       <div className="modal-backdrop" onClick={onClose} />
 
-      {/* Dialog */}
-      <div className="modal" role="dialog" aria-modal="true" aria-label="Ajouter une transaction">
-        {/* Header */}
+      <div className="modal" role="dialog" aria-modal="true" aria-label={isEdit ? 'Modifier la transaction' : 'Ajouter une transaction'}>
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div className="modal-icon">
-              <Plus size={18} />
+              {isEdit ? <Pencil size={18} /> : <Plus size={18} />}
             </div>
-            <h2 className="modal-title">Ajouter une transaction</h2>
+            <h2 className="modal-title">{isEdit ? 'Modifier la transaction' : 'Ajouter une transaction'}</h2>
           </div>
           <button className="modal-close" onClick={onClose} aria-label="Fermer">
             <X size={18} />
@@ -81,7 +100,6 @@ export default function AddTransactionModal({ onClose }) {
         <form onSubmit={handleSubmit} noValidate>
           <div className="modal-body">
 
-            {/* Type toggle */}
             <div className="form-group">
               <label className="form-label">Type</label>
               <div className="type-toggle">
@@ -102,7 +120,6 @@ export default function AddTransactionModal({ onClose }) {
               </div>
             </div>
 
-            {/* Date */}
             <div className="form-group">
               <label className="form-label" htmlFor="tx-date">Date</label>
               <input
@@ -111,12 +128,10 @@ export default function AddTransactionModal({ onClose }) {
                 type="date"
                 value={form.date}
                 onChange={e => set('date', e.target.value)}
-                max={today()}
                 required
               />
             </div>
 
-            {/* Description */}
             <div className="form-group">
               <label className="form-label" htmlFor="tx-desc">Description</label>
               <input
@@ -132,7 +147,6 @@ export default function AddTransactionModal({ onClose }) {
               />
             </div>
 
-            {/* Amount */}
             <div className="form-group">
               <label className="form-label" htmlFor="tx-amount">
                 Montant <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(€)</span>
@@ -156,7 +170,6 @@ export default function AddTransactionModal({ onClose }) {
               </div>
             </div>
 
-            {/* Category */}
             <div className="form-group">
               <label className="form-label" htmlFor="tx-category">Catégorie</label>
               <select
@@ -183,7 +196,7 @@ export default function AddTransactionModal({ onClose }) {
               Annuler
             </button>
             <button type="submit" className="btn btn-primary">
-              <Plus size={16} /> Ajouter
+              {isEdit ? <><Pencil size={16} /> Enregistrer</> : <><Plus size={16} /> Ajouter</>}
             </button>
           </div>
         </form>

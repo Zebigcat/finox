@@ -43,6 +43,12 @@ export function FinanceProvider({ children }) {
   const [transactions, setTransactions] = useState([])
   const [txLoading,   setTxLoading]   = useState(false)
   const [apiKey,      setApiKeyState] = useState(() => localStorage.getItem('finox_api_key') || '')
+  const [referenceBalance, setReferenceBalanceState] = useState(() => {
+    try {
+      const stored = localStorage.getItem('finox_ref_balance')
+      return stored ? JSON.parse(stored) : { amount: 0.03, date: '2026-05-11' }
+    } catch { return { amount: 2.00, date: '2025-01-31' } }
+  })
 
   // ── Auth state ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -132,6 +138,46 @@ export function FinanceProvider({ children }) {
     }
   }
 
+  // ── updateTransaction ───────────────────────────────────────────────────────
+  const updateTransaction = async (tx) => {
+    if (!user) return
+
+    setTransactions(prev =>
+      prev.map(t => t.id === tx.id ? tx : t)
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+    )
+
+    const row = txToRow(tx, user.id)
+    const { error } = await supabase
+      .from('transactions')
+      .update({ date: row.date, label: row.label, amount: row.amount, type: row.type, cat: row.cat })
+      .eq('id', tx.id)
+      .eq('user_id', user.id)
+
+    if (error) {
+      console.error('Erreur update transaction:', error.message)
+      fetchTransactions(user)
+    }
+  }
+
+  // ── deleteTransaction ───────────────────────────────────────────────────────
+  const deleteTransaction = async (id) => {
+    if (!user) return
+
+    setTransactions(prev => prev.filter(t => t.id !== id))
+
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)
+
+    if (error) {
+      console.error('Erreur delete transaction:', error.message)
+      fetchTransactions(user)
+    }
+  }
+
   // ── clearTransactions ───────────────────────────────────────────────────────
   const clearTransactions = async () => {
     if (!user) return
@@ -141,6 +187,12 @@ export function FinanceProvider({ children }) {
       .delete()
       .eq('user_id', user.id)
     if (error) console.error('Erreur clear transactions:', error.message)
+  }
+
+  // ── Reference balance ───────────────────────────────────────────────────────
+  const setReferenceBalance = (ref) => {
+    setReferenceBalanceState(ref)
+    localStorage.setItem('finox_ref_balance', JSON.stringify(ref))
   }
 
   // ── API key (stays in localStorage — it's the user's own key) ──────────────
@@ -157,6 +209,15 @@ export function FinanceProvider({ children }) {
 
   const stats = computeStats(transactions)
 
+  // Real balance = reference amount + all transactions strictly after the reference date
+  const realBalance = (() => {
+    const refDate = referenceBalance.date  // 'YYYY-MM-DD'
+    const delta = transactions
+      .filter(t => t.date > refDate)
+      .reduce((s, t) => s + t.amount, 0)
+    return referenceBalance.amount + delta
+  })()
+
   return (
     <FinanceContext.Provider value={{
       user,
@@ -164,11 +225,16 @@ export function FinanceProvider({ children }) {
       transactions,
       txLoading,
       addTransactions,
+      updateTransaction,
+      deleteTransaction,
       clearTransactions,
       apiKey,
       setApiKey,
       signOut,
       stats,
+      referenceBalance,
+      setReferenceBalance,
+      realBalance,
     }}>
       {children}
     </FinanceContext.Provider>

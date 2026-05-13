@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Search, Filter, Download, Plus } from 'lucide-react'
+import { Search, Filter, Download, Plus, Pencil, Trash2 } from 'lucide-react'
 import { useFinance } from '../context/FinanceContext'
 import { formatAmount, formatDate, CATEGORY_COLORS } from '../utils/csvParser'
 import AddTransactionModal from '../components/AddTransactionModal'
@@ -7,7 +7,7 @@ import AddTransactionModal from '../components/AddTransactionModal'
 const PAGE_SIZE = 50
 
 export default function Transactions() {
-  const { transactions, stats } = useFinance()
+  const { transactions, stats, deleteTransaction } = useFinance()
   const [search, setSearch] = useState('')
   const [filterCategory, setFilterCategory] = useState('all')
   const [filterType, setFilterType] = useState('all')
@@ -15,6 +15,7 @@ export default function Transactions() {
   const [sortBy, setSortBy] = useState('date_desc')
   const [page, setPage] = useState(0)
   const [showModal, setShowModal] = useState(false)
+  const [editTx, setEditTx] = useState(null)
 
   const categories = useMemo(() => Object.keys(stats.byCategory), [stats.byCategory])
   const months = useMemo(() => Object.keys(stats.byMonth).sort().reverse(), [stats.byMonth])
@@ -189,7 +190,7 @@ export default function Transactions() {
                 </thead>
                 <tbody>
                   {paged.map(t => (
-                    <tr key={t.id}>
+                    <tr key={t.id} className="tx-row">
                       <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap', fontSize: 13 }}>
                         {formatDate(t.date)}
                       </td>
@@ -205,9 +206,25 @@ export default function Transactions() {
                           {t.emoji} {t.category}
                         </span>
                       </td>
-                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <td style={{ textAlign: 'right', whiteSpace: 'nowrap', position: 'relative' }}>
                         <span className={t.amount >= 0 ? 'amount-positive' : 'amount-negative'}>
                           {t.amount >= 0 ? '+' : ''}{formatAmount(t.amount)}
+                        </span>
+                        <span className="tx-row-actions">
+                          <button
+                            className="btn-icon"
+                            title="Modifier"
+                            onClick={() => setEditTx(t)}
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            className="btn-icon btn-icon-danger"
+                            title="Supprimer"
+                            onClick={() => { if (window.confirm('Supprimer cette transaction ?')) deleteTransaction(t.id) }}
+                          >
+                            <Trash2 size={13} />
+                          </button>
                         </span>
                       </td>
                       {paged.some(tx => tx.balance !== null) && (
@@ -240,6 +257,18 @@ export default function Transactions() {
                         {t.emoji} {t.category}
                       </span>
                     </div>
+                    <div className="tx-card-row" style={{ marginTop: 8, justifyContent: 'flex-end', gap: 8 }}>
+                      <button className="btn-icon" title="Modifier" onClick={() => setEditTx(t)}>
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        className="btn-icon btn-icon-danger"
+                        title="Supprimer"
+                        onClick={() => { if (window.confirm('Supprimer cette transaction ?')) deleteTransaction(t.id) }}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -262,6 +291,7 @@ export default function Transactions() {
         </div>
       </div>
       {showModal && <AddTransactionModal onClose={() => setShowModal(false)} />}
+      {editTx && <AddTransactionModal onClose={() => setEditTx(null)} transaction={editTx} />}
     </div>
   )
 }
