@@ -2,6 +2,13 @@ import { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { getCategoryEmoji, CATEGORIES } from '../utils/csvParser'
 
+const TRANSFER_KEYWORDS = ['reserve', "arrondi à l'euro", 'arrondi euro', 'transfert interne', 'virement interne', 'epargne automatique']
+
+function isTransfer(label) {
+  const lower = (label || '').toLowerCase()
+  return TRANSFER_KEYWORDS.some(kw => lower.includes(kw))
+}
+
 const FinanceContext = createContext(null)
 
 // ─── Row shape helpers ────────────────────────────────────────────────────────
@@ -121,6 +128,25 @@ export function FinanceProvider({ children }) {
           return
         }
       }
+    }
+
+    // Recategorize existing transfer transactions that weren't caught before
+    const toFix = fetched.filter(t => t.category !== 'Transfert interne' && isTransfer(t.label))
+    if (toFix.length > 0) {
+      const ids = toFix.map(t => t.id)
+      await supabase
+        .from('transactions')
+        .update({ cat: 'Transfert interne' })
+        .in('id', ids)
+        .eq('user_id', currentUser.id)
+
+      const fixedSet = new Set(ids)
+      fetched.forEach(t => {
+        if (fixedSet.has(t.id)) {
+          t.category = 'Transfert interne'
+          t.emoji = '🔁'
+        }
+      })
     }
 
     setTransactions(fetched)
