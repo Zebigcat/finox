@@ -312,6 +312,29 @@ export default function Transactions() {
       </div>
       {showModal && <AddTransactionModal onClose={() => setShowModal(false)} />}
       {editTx && <AddTransactionModal onClose={() => setEditTx(null)} transaction={editTx} />}
+
+      {/* Floating add button */}
+      <button
+        className="btn btn-primary"
+        onClick={() => setShowModal(true)}
+        style={{
+          position: 'fixed',
+          bottom: 88,
+          right: 24,
+          zIndex: 50,
+          borderRadius: 50,
+          width: 52,
+          height: 52,
+          padding: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          boxShadow: '0 4px 20px rgba(124,111,205,0.4)',
+        }}
+        title="Ajouter une transaction"
+      >
+        <Plus size={22} />
+      </button>
     </div>
   )
 }
