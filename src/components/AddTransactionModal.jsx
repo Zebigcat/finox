@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, Plus, TrendingDown, TrendingUp, Pencil } from 'lucide-react'
+import { X, Plus, TrendingDown, TrendingUp, Pencil, ArrowLeftRight } from 'lucide-react'
 import { useFinance } from '../context/FinanceContext'
-import { CATEGORIES, getCategoryEmoji } from '../utils/csvParser'
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -14,13 +13,14 @@ const DEFAULT_FORM = {
 }
 
 export default function AddTransactionModal({ onClose, transaction }) {
-  const { addTransactions, updateTransaction } = useFinance()
+  const { addTransactions, updateTransaction, allCategories } = useFinance()
   const isEdit = !!transaction
 
   const [form, setForm] = useState(() => {
     if (isEdit) {
+      const isTransfer = transaction.category === 'Transfert interne'
       return {
-        type: transaction.amount >= 0 ? 'income' : 'expense',
+        type: isTransfer ? 'transfer' : transaction.amount >= 0 ? 'income' : 'expense',
         date: transaction.date,
         description: transaction.label,
         amount: String(Math.abs(transaction.amount)),
@@ -55,15 +55,19 @@ export default function AddTransactionModal({ onClose, transaction }) {
 
     const signed = form.type === 'expense' ? -Math.abs(amt) : Math.abs(amt)
 
+    const finalCategory = form.type === 'transfer' ? 'Transfert interne' : form.category
+    const emoji = allCategories.find(c => c.name === finalCategory)?.emoji || '🔁'
+    const finalSigned = form.type === 'transfer' ? -Math.abs(amt) : signed
+
     if (isEdit) {
       updateTransaction({
         ...transaction,
         date: form.date,
         label: desc,
         merchant: desc,
-        amount: signed,
-        category: form.category,
-        emoji: getCategoryEmoji(form.category),
+        amount: finalSigned,
+        category: finalCategory,
+        emoji,
       })
     } else {
       addTransactions([{
@@ -71,9 +75,9 @@ export default function AddTransactionModal({ onClose, transaction }) {
         date: form.date,
         label: desc,
         merchant: desc,
-        amount: signed,
-        category: form.category,
-        emoji: getCategoryEmoji(form.category),
+        amount: finalSigned,
+        category: finalCategory,
+        emoji,
         balance: null,
       }])
     }
@@ -116,6 +120,14 @@ export default function AddTransactionModal({ onClose, transaction }) {
                   onClick={() => set('type', 'income')}
                 >
                   <TrendingUp size={15} /> Revenu
+                </button>
+                <button
+                  type="button"
+                  className={`type-toggle-btn${form.type === 'transfer' ? ' active' : ''}`}
+                  onClick={() => set('type', 'transfer')}
+                  style={form.type === 'transfer' ? { background: 'rgba(148,163,184,0.15)', borderColor: 'rgba(148,163,184,0.5)', color: '#94a3b8' } : {}}
+                >
+                  <ArrowLeftRight size={15} /> Transfert
                 </button>
               </div>
             </div>
@@ -170,21 +182,29 @@ export default function AddTransactionModal({ onClose, transaction }) {
               </div>
             </div>
 
-            <div className="form-group">
-              <label className="form-label" htmlFor="tx-category">Catégorie</label>
-              <select
-                id="tx-category"
-                className="form-input filter-select"
-                value={form.category}
-                onChange={e => set('category', e.target.value)}
-                style={{ width: '100%' }}
-              >
-                {CATEGORIES.map(({ name, emoji }) => (
-                  <option key={name} value={name}>{emoji} {name}</option>
-                ))}
-                <option value="Autre">📦 Autre</option>
-              </select>
-            </div>
+            {form.type === 'transfer' ? (
+              <div className="form-group">
+                <label className="form-label">Catégorie</label>
+                <div style={{ padding: '9px 12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, color: 'var(--text-muted)' }}>
+                  🔁 Transfert interne — exclu des statistiques
+                </div>
+              </div>
+            ) : (
+              <div className="form-group">
+                <label className="form-label" htmlFor="tx-category">Catégorie</label>
+                <select
+                  id="tx-category"
+                  className="form-input filter-select"
+                  value={form.category}
+                  onChange={e => set('category', e.target.value)}
+                  style={{ width: '100%' }}
+                >
+                  {allCategories.map(({ name, emoji }) => (
+                    <option key={name} value={name}>{emoji} {name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {error && (
               <p className="form-error">{error}</p>

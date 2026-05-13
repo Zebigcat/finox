@@ -17,6 +17,7 @@ const CATEGORY_RULES = [
   { keywords: ['frais bancaires', 'cotisation carte', 'agios', 'commission', 'decouvert', 'interets debiteurs', 'frais de tenue', 'frais virement', 'incident de paiement', 'frais de rejet'], category: 'Frais bancaires', emoji: '🏦' },
   { keywords: ['retrait', 'dab', 'atm', 'especes'], category: 'Retrait', emoji: '💵' },
   { keywords: ['credit', 'remboursement credit', 'mensualite'], category: 'Crédit', emoji: '💳' },
+  { keywords: ['reserve', 'arrondi à l\'euro', 'arrondi euro', 'transfert interne', 'virement interne', 'epargne automatique'], category: 'Transfert interne', emoji: '🔁' },
 ]
 
 export function getCategoryEmoji(category) {
@@ -198,6 +199,7 @@ export const CATEGORY_COLORS = {
   'Frais bancaires': '#e879f9',
   'Retrait': '#d4d4d8',
   'Crédit': '#818cf8',
+  'Transfert interne': '#94a3b8',
   'Autre': '#71717a',
 }
 

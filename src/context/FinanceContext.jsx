@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
-import { getCategoryEmoji } from '../utils/csvParser'
+import { getCategoryEmoji, CATEGORIES } from '../utils/csvParser'
 
 const FinanceContext = createContext(null)
 
@@ -8,18 +8,26 @@ const FinanceContext = createContext(null)
 // DB columns : id | user_id | date | label | amount | type | cat | created_at
 // App object : id | date | label | merchant | amount | category | emoji | balance | type
 
-function rowToTx(row) {
-  const amount = parseFloat(row.amount)
-  return {
-    id:       row.id,
-    date:     row.date,
-    label:    row.label,
-    merchant: row.label,                  // no separate merchant column — use label
-    amount:   row.type === 'expense' ? -Math.abs(amount) : Math.abs(amount),
-    type:     row.type,
-    category: row.cat,
-    emoji:    getCategoryEmoji(row.cat),  // derived from category name
-    balance:  null,
+function getEmojiFromAll(cat, customCats) {
+  const builtin = getCategoryEmoji(cat)
+  if (builtin !== '📦') return builtin
+  return customCats.find(c => c.name === cat)?.emoji || '📦'
+}
+
+function makeRowToTx(customCats) {
+  return function rowToTx(row) {
+    const amount = parseFloat(row.amount)
+    return {
+      id:       row.id,
+      date:     row.date,
+      label:    row.label,
+      merchant: row.label,
+      amount:   row.type === 'expense' ? -Math.abs(amount) : Math.abs(amount),
+      type:     row.type,
+      category: row.cat,
+      emoji:    getEmojiFromAll(row.cat, customCats),
+      balance:  null,
+    }
   }
 }
 
@@ -49,6 +57,12 @@ export function FinanceProvider({ children }) {
       return stored ? JSON.parse(stored) : { amount: 0.03, date: '2026-05-11' }
     } catch { return { amount: 2.00, date: '2025-01-31' } }
   })
+  const [customCategories, setCustomCategoriesState] = useState(() => {
+    try {
+      const stored = localStorage.getItem('finox-custom-categories')
+      return stored ? JSON.parse(stored) : []
+    } catch { return [] }
+  })
 
   // ── Auth state ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -69,11 +83,12 @@ export function FinanceProvider({ children }) {
   // ── Fetch transactions whenever the user changes ────────────────────────────
   useEffect(() => {
     if (!user) return
-    fetchTransactions(user)
+    fetchTransactions(user, customCategories)
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  async function fetchTransactions(currentUser) {
+  async function fetchTransactions(currentUser, customCats) {
     setTxLoading(true)
+    const rowToTx = makeRowToTx(customCats)
     const { data, error } = await supabase
       .from('transactions')
       .select('*')
@@ -99,7 +114,6 @@ export function FinanceProvider({ children }) {
           .upsert(rows, { onConflict: 'id' })
         if (!upErr) {
           localStorage.removeItem('finox_transactions')
-          // Re-shape migrated transactions through rowToTx for consistency
           const migrated = rows.map(r => rowToTx(r))
             .sort((a, b) => new Date(b.date) - new Date(a.date))
           setTransactions(migrated)
@@ -201,6 +215,32 @@ export function FinanceProvider({ children }) {
     localStorage.setItem('finox_api_key', key)
   }
 
+  // ── Custom categories ───────────────────────────────────────────────────────
+  const addCategory = ({ name, emoji }) => {
+    const trimmed = name.trim()
+    if (!trimmed) return
+    setCustomCategoriesState(prev => {
+      if (prev.some(c => c.name === trimmed)) return prev
+      const updated = [...prev, { name: trimmed, emoji: emoji?.trim() || '📦' }]
+      localStorage.setItem('finox-custom-categories', JSON.stringify(updated))
+      return updated
+    })
+  }
+
+  const deleteCategory = (name) => {
+    setCustomCategoriesState(prev => {
+      const updated = prev.filter(c => c.name !== name)
+      localStorage.setItem('finox-custom-categories', JSON.stringify(updated))
+      return updated
+    })
+  }
+
+  const allCategories = [
+    ...CATEGORIES,
+    { name: 'Autre', emoji: '📦' },
+    ...customCategories,
+  ]
+
   // ── Sign out ────────────────────────────────────────────────────────────────
   const signOut = async () => {
     await supabase.auth.signOut()
@@ -235,6 +275,10 @@ export function FinanceProvider({ children }) {
       referenceBalance,
       setReferenceBalance,
       realBalance,
+      customCategories,
+      allCategories,
+      addCategory,
+      deleteCategory,
     }}>
       {children}
     </FinanceContext.Provider>
@@ -249,15 +293,18 @@ function computeStats(transactions) {
     byCategory: {}, byMonth: {}, byMerchant: {},
   }
 
-  const totalIncome   = transactions.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0)
-  const totalExpenses = transactions.filter(t => t.amount < 0).reduce((s, t) => s + t.amount, 0)
+  // Transfers are real money movements but not income/expenses — exclude from financial stats
+  const ops = transactions.filter(t => t.category !== 'Transfert interne')
+
+  const totalIncome   = ops.filter(t => t.amount > 0).reduce((s, t) => s + t.amount, 0)
+  const totalExpenses = ops.filter(t => t.amount < 0).reduce((s, t) => s + t.amount, 0)
   const balance = totalIncome + totalExpenses
 
   const byCategory = {}
   const byMonth    = {}
   const byMerchant = {}
 
-  for (const t of transactions) {
+  for (const t of ops) {
     const cat = t.category || 'Autre'
     if (!byCategory[cat]) byCategory[cat] = { income: 0, expenses: 0, count: 0 }
     if (t.amount > 0) byCategory[cat].income += t.amount
@@ -276,7 +323,7 @@ function computeStats(transactions) {
     }
   }
 
-  return { totalIncome, totalExpenses: Math.abs(totalExpenses), balance, count: transactions.length, byCategory, byMonth, byMerchant }
+  return { totalIncome, totalExpenses: Math.abs(totalExpenses), balance, count: ops.length, byCategory, byMonth, byMerchant }
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────

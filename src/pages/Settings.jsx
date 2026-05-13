@@ -1,9 +1,23 @@
 import { useState } from 'react'
-import { Save, Eye, EyeOff, CheckCircle, ExternalLink, LogOut, User } from 'lucide-react'
+import { Save, Eye, EyeOff, CheckCircle, ExternalLink, LogOut, User, Plus, Trash2 } from 'lucide-react'
 import { useFinance } from '../context/FinanceContext'
 
 export default function Settings() {
-  const { apiKey, setApiKey, user, signOut, referenceBalance, setReferenceBalance } = useFinance()
+  const { apiKey, setApiKey, user, signOut, referenceBalance, setReferenceBalance, customCategories, addCategory, deleteCategory } = useFinance()
+
+  const [newCatName,  setNewCatName]  = useState('')
+  const [newCatEmoji, setNewCatEmoji] = useState('')
+  const [catError,    setCatError]    = useState('')
+
+  const handleAddCategory = () => {
+    const name = newCatName.trim()
+    if (!name) { setCatError('Le nom est requis.'); return }
+    if (name.length > 30) { setCatError('30 caractères max.'); return }
+    addCategory({ name, emoji: newCatEmoji.trim() || '📦' })
+    setNewCatName('')
+    setNewCatEmoji('')
+    setCatError('')
+  }
   const [localKey, setLocalKey] = useState(apiKey)
   const [showKey, setShowKey] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -111,6 +125,68 @@ export default function Settings() {
                 <Save size={16} /> Sauvegarder
               </button>
             </div>
+          </div>
+
+          {/* Custom categories section */}
+          <div className="card" style={{ marginBottom: 16 }}>
+            <div className="card-header" style={{ marginBottom: 16 }}>
+              <span className="card-title">Catégories personnalisées</span>
+            </div>
+
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.7 }}>
+              Ajoutez vos propres catégories. Elles seront disponibles lors de l'ajout ou la modification d'une transaction.
+            </p>
+
+            {customCategories.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                {customCategories.map(({ name, emoji }) => (
+                  <div
+                    key={name}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                      borderRadius: 8, padding: '5px 10px', fontSize: 13,
+                    }}
+                  >
+                    <span>{emoji}</span>
+                    <span style={{ color: 'var(--text-primary)' }}>{name}</span>
+                    <button
+                      onClick={() => deleteCategory(name)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, display: 'flex', alignItems: 'center' }}
+                      title="Supprimer"
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <input
+                className="form-input"
+                type="text"
+                placeholder="🏷️"
+                value={newCatEmoji}
+                onChange={e => { setNewCatEmoji(e.target.value); setCatError('') }}
+                style={{ width: 64, textAlign: 'center', fontSize: 18, padding: '8px 4px' }}
+                maxLength={4}
+              />
+              <input
+                className="form-input"
+                type="text"
+                placeholder="Nom de la catégorie"
+                value={newCatName}
+                onChange={e => { setNewCatName(e.target.value); setCatError('') }}
+                onKeyDown={e => e.key === 'Enter' && handleAddCategory()}
+                style={{ flex: 1, minWidth: 160 }}
+                maxLength={30}
+              />
+              <button className="btn btn-primary" onClick={handleAddCategory} style={{ flexShrink: 0 }}>
+                <Plus size={16} /> Ajouter
+              </button>
+            </div>
+            {catError && <p className="form-error" style={{ marginTop: 8 }}>{catError}</p>}
           </div>
 
           {/* API Key section */}

@@ -1,24 +1,36 @@
-import { useState, useRef, useEffect } from 'react'
-import { Send, Bot, AlertTriangle, Sparkles, Mic, MicOff, Camera, X } from 'lucide-react'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import { Send, Bot, AlertTriangle, Sparkles, Mic, MicOff, Camera, Trash2 } from 'lucide-react'
 import Anthropic from '@anthropic-ai/sdk'
 import { useFinance } from '../context/FinanceContext'
-import { formatAmount, getCategoryEmoji } from '../utils/csvParser'
+import { formatAmount } from '../utils/csvParser'
 import { Link } from 'react-router-dom'
 
 const SYSTEM_PROMPT = `Tu es Finox AI, un assistant financier personnel intelligent et bienveillant.
 Tu analyses les finances de l'utilisateur et fournis des conseils personnalisés, clairs et actionnables.
+Tu peux également AGIR directement en utilisant les outils disponibles.
+Règle importante : quand l'utilisateur demande d'ajouter, d'enregistrer ou de saisir une transaction (dépense ou revenu), utilise TOUJOURS l'outil add_transaction — ne donne jamais de conseils à la place d'une action demandée.
 Tu réponds TOUJOURS en français, de façon concise et structurée.
 Tu utilises des emoji pour rendre tes réponses plus lisibles.
 Tu ne révèles jamais les données brutes, mais tu les utilises pour formuler des observations pertinentes.`
 
+
+const INITIAL_MESSAGES = [
+  {
+    role: 'assistant',
+    content: 'Bonjour ! Je suis **Finox AI**, votre assistant financier personnel.\n\nJe peux analyser vos transactions, identifier vos habitudes de dépense et vous donner des conseils personnalisés. Je peux aussi **ajouter des transactions** directement — dites-moi par exemple "Ajoute une dépense de 12€ chez McDonald\'s". Comment puis-je vous aider ?',
+  },
+]
+
 const SUGGESTIONS = [
+  'Ajoute une dépense de 25€ au restaurant',
   'Où est-ce que je dépense trop ?',
-  'Analyse mon mois de janvier',
+  'Analyse mon mois dernier',
   'Donne-moi 3 conseils pour économiser',
   'Quel est mon taux d\'épargne actuel ?',
   'Quelles dépenses semblent inhabituelles ?',
-  'Compare mes deux derniers mois',
 ]
+
+const STORAGE_KEY = 'finox-agent-messages'
 
 function fileToBase64(file) {
   return new Promise((resolve, reject) => {
@@ -37,13 +49,43 @@ function renderMarkdown(content) {
 }
 
 export default function Agent() {
-  const { apiKey, transactions, stats, addTransactions, realBalance, referenceBalance } = useFinance()
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: 'Bonjour ! Je suis **Finox AI**, votre assistant financier personnel.\n\nJe peux analyser vos transactions, identifier vos habitudes de dépense et vous donner des conseils personnalisés. Comment puis-je vous aider ?',
+  const { apiKey, transactions, stats, addTransactions, realBalance, referenceBalance, allCategories } = useFinance()
+
+  const tools = useMemo(() => [{
+    name: 'add_transaction',
+    description: 'Ajouter une transaction (dépense ou revenu) dans le journal financier de l\'utilisateur. Utilise cet outil dès que l\'utilisateur demande d\'ajouter, d\'enregistrer ou de saisir une dépense ou un revenu.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        merchant: {
+          type: 'string',
+          description: 'Nom du marchand ou de la source (ex: "Carrefour", "Salaire entreprise")',
+        },
+        amount: {
+          type: 'number',
+          description: 'Montant en euros. Négatif pour une dépense (ex: -24.90), positif pour un revenu (ex: 2500)',
+        },
+        date: {
+          type: 'string',
+          description: 'Date au format YYYY-MM-DD. Utilise la date d\'aujourd\'hui si non précisée.',
+        },
+        category: {
+          type: 'string',
+          enum: allCategories.map(c => c.name),
+          description: 'Catégorie de la transaction',
+        },
+      },
+      required: ['merchant', 'amount', 'date', 'category'],
     },
-  ])
+  }], [allCategories])
+  const [messages, setMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      return saved ? JSON.parse(saved) : INITIAL_MESSAGES
+    } catch {
+      return INITIAL_MESSAGES
+    }
+  })
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [listening, setListening] = useState(false)
@@ -58,16 +100,28 @@ export default function Agent() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages, loading])
 
-  // ── Financial context (smart summary — ~80% fewer tokens than raw list) ──
+  // Persist conversation to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages))
+    } catch {}
+  }, [messages])
+
+  const clearConversation = () => {
+    setMessages(INITIAL_MESSAGES)
+  }
+
+  // ── Financial context ────────────────────────────────────────────────────
   const buildContext = () => {
     if (!transactions.length) return 'Aucune transaction disponible.'
 
+    const today = new Date().toISOString().slice(0, 10)
     const savingsRate = stats.totalIncome > 0
       ? ((stats.totalIncome - stats.totalExpenses) / stats.totalIncome * 100).toFixed(1)
       : '0.0'
 
-    // --- Key stats ---
     const keyStats = [
+      `Date du jour : ${today}`,
       `Solde actuel : ${formatAmount(realBalance)} (ref. ${formatAmount(referenceBalance.amount)} au ${referenceBalance.date})`,
       `Revenus totaux : ${formatAmount(stats.totalIncome)}`,
       `Dépenses totales : ${formatAmount(stats.totalExpenses)}`,
@@ -75,17 +129,13 @@ export default function Agent() {
       `Nombre de transactions : ${stats.count}`,
     ].join('\n')
 
-    // --- Top 10 merchants ---
     const topMerchants = Object.entries(stats.byMerchant)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([k, v], i) => `${i + 1}. ${k}: ${formatAmount(v)}`)
       .join('\n')
 
-    // --- Monthly totals by category (last 6 months) ---
     const sortedMonths = Object.keys(stats.byMonth).sort().slice(-6)
-
-    // Build per-month category breakdown from raw transactions
     const monthlyCatMap = {}
     for (const t of transactions) {
       const month = t.date.slice(0, 7)
@@ -108,7 +158,6 @@ export default function Agent() {
       return `${label} — revenus ${formatAmount(totals.income)}, dépenses ${formatAmount(totals.expenses)}${cats ? '\n' + cats : ''}`
     }).join('\n\n')
 
-    // --- Last 20 transactions ---
     const recentTx = transactions
       .slice(0, 20)
       .map(t => `${t.date} | ${t.merchant} | ${formatAmount(t.amount)} | ${t.category}`)
@@ -129,6 +178,26 @@ ${monthlyBreakdown}
 ${recentTx}`
   }
 
+  // ── Execute add_transaction tool ─────────────────────────────────────────
+  const executeTool = (name, input) => {
+    if (name !== 'add_transaction') return { success: false, error: 'Outil inconnu' }
+
+    const { merchant, amount, date, category } = input
+    const emoji = allCategories.find(c => c.name === category)?.emoji || '📦'
+    const tx = {
+      id: `agent-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      date,
+      label: merchant,
+      merchant,
+      amount,
+      category,
+      emoji,
+      balance: null,
+    }
+    addTransactions([tx])
+    return { success: true, transaction: tx }
+  }
+
   // ── Send chat message ────────────────────────────────────────────────────
   const sendMessage = async (overrideText) => {
     const text = (overrideText ?? input).trim()
@@ -142,26 +211,59 @@ ${recentTx}`
     try {
       const client = new Anthropic({ apiKey, dangerouslyAllowBrowser: true })
 
+      const today = new Date().toISOString().slice(0, 10)
       const contextMsg = {
         role: 'user',
-        content: `[CONTEXTE FINANCIER]\n${buildContext()}\n\n[QUESTION]\n${text}`,
+        content: `[CONTEXTE FINANCIER — ${today}]\n${buildContext()}\n\n[QUESTION]\n${text}`,
       }
 
+      // Rebuild API-compatible history (no system messages, text only)
       const historyMsgs = messages
         .filter(m => m.role !== 'system')
         .map(m => ({ role: m.role, content: m.content }))
 
-      const response = await client.messages.create({
+      const apiMessages = [...historyMsgs, contextMsg]
+
+      let response = await client.messages.create({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 1024,
         system: SYSTEM_PROMPT,
-        messages: [...historyMsgs, contextMsg],
+        tools,
+        messages: apiMessages,
       })
 
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: response.content[0]?.text || 'Désolé, je n\'ai pas pu générer une réponse.',
-      }])
+      // Agentic loop: handle tool_use responses
+      while (response.stop_reason === 'tool_use') {
+        const toolUseBlocks = response.content.filter(b => b.type === 'tool_use')
+        const toolResults = []
+
+        for (const block of toolUseBlocks) {
+          const result = executeTool(block.name, block.input)
+          toolResults.push({
+            type: 'tool_result',
+            tool_use_id: block.id,
+            content: JSON.stringify(result),
+          })
+        }
+
+        apiMessages.push(
+          { role: 'assistant', content: response.content },
+          { role: 'user', content: toolResults },
+        )
+
+        response = await client.messages.create({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 1024,
+          system: SYSTEM_PROMPT,
+          tools,
+          messages: apiMessages,
+        })
+      }
+
+      const assistantText = response.content.find(b => b.type === 'text')?.text
+        || 'Désolé, je n\'ai pas pu générer une réponse.'
+
+      setMessages(prev => [...prev, { role: 'assistant', content: assistantText }])
     } catch (e) {
       let errorMsg = 'Erreur lors de la communication avec l\'API.'
       if (e.status === 401) errorMsg = 'Clé API invalide. Vérifiez vos paramètres.'
@@ -219,7 +321,6 @@ ${recentTx}`
   const handlePhoto = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
-    // Reset input so same file can be picked again
     e.target.value = ''
 
     const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp']
@@ -232,10 +333,7 @@ ${recentTx}`
     }
 
     setPhotoLoading(true)
-    setMessages(prev => [...prev, {
-      role: 'user',
-      content: `📸 *Analyse de reçu en cours…*`,
-    }])
+    setMessages(prev => [...prev, { role: 'user', content: '📸 *Analyse de reçu en cours…*' }])
 
     try {
       const base64 = await fileToBase64(file)
@@ -247,10 +345,7 @@ ${recentTx}`
         messages: [{
           role: 'user',
           content: [
-            {
-              type: 'image',
-              source: { type: 'base64', media_type: file.type, data: base64 },
-            },
+            { type: 'image', source: { type: 'base64', media_type: file.type, data: base64 } },
             {
               type: 'text',
               text: `Analyse ce reçu ou ticket de caisse. Réponds uniquement avec un objet JSON valide, rien d'autre :
@@ -268,11 +363,9 @@ Si une information est illisible, mets null pour ce champ. Le montant doit être
 
       const text = response.content[0]?.text || ''
       const jsonMatch = text.match(/\{[\s\S]*?\}/)
-
       if (!jsonMatch) throw new Error('Impossible d\'extraire les données du reçu.')
 
       const data = JSON.parse(jsonMatch[0])
-
       if (!data.merchant || data.amount === null || data.amount === undefined) {
         throw new Error('Données du reçu incomplètes (marchand ou montant manquant).')
       }
@@ -288,7 +381,6 @@ Si une information est illisible, mets null pour ce champ. Le montant doit être
         emoji: getCategoryEmoji(data.category || 'Autre'),
         balance: null,
       }
-
       addTransactions([tx])
 
       const dateLabel = data.date
@@ -296,7 +388,7 @@ Si une information est illisible, mets null pour ce champ. Le montant doit être
         : 'aujourd\'hui'
 
       setMessages(prev => [
-        ...prev.slice(0, -1), // remove the "en cours" placeholder
+        ...prev.slice(0, -1),
         {
           role: 'assistant',
           content: `✅ Reçu analysé et transaction ajoutée !\n\n**${data.merchant}** · ${formatAmount(data.amount)}\n📅 ${dateLabel} · ${tx.emoji} ${tx.category}`,
@@ -305,10 +397,7 @@ Si une information est illisible, mets null pour ce champ. Le montant doit être
     } catch (e) {
       setMessages(prev => [
         ...prev.slice(0, -1),
-        {
-          role: 'assistant',
-          content: `❌ Impossible d'analyser ce reçu : ${e.message}`,
-        },
+        { role: 'assistant', content: `❌ Impossible d'analyser ce reçu : ${e.message}` },
       ])
     } finally {
       setPhotoLoading(false)
@@ -360,9 +449,20 @@ Si une information est illisible, mets null pour ce champ. Le montant doit être
                 : 'Aucune donnée importée — importez un CSV pour de meilleures analyses'}
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--green)' }}>
-            <div style={{ width: 8, height: 8, background: 'var(--green)', borderRadius: '50%' }} />
-            <span className="hide-mobile">Claude Haiku connecté</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button
+              className="btn btn-ghost"
+              onClick={clearConversation}
+              title="Nouvelle conversation"
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, padding: '6px 10px' }}
+            >
+              <Trash2 size={14} />
+              <span className="hide-mobile">Effacer</span>
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--green)' }}>
+              <div style={{ width: 8, height: 8, background: 'var(--green)', borderRadius: '50%' }} />
+              <span className="hide-mobile">Claude Haiku connecté</span>
+            </div>
           </div>
         </div>
       </div>
@@ -415,7 +515,6 @@ Si une information est illisible, mets null pour ce champ. Le montant doit être
 
             {/* Input area */}
             <div className="chat-input-area">
-              {/* Voice button */}
               <button
                 className={`chat-action-btn${listening ? ' listening' : ''}`}
                 onClick={toggleVoice}
@@ -425,7 +524,6 @@ Si une information est illisible, mets null pour ce champ. Le montant doit être
                 {listening ? <MicOff size={17} /> : <Mic size={17} />}
               </button>
 
-              {/* Camera button */}
               <button
                 className="chat-action-btn"
                 onClick={() => photoRef.current?.click()}
@@ -446,7 +544,7 @@ Si une information est illisible, mets null pour ce champ. Le montant doit être
               <textarea
                 ref={inputRef}
                 className="chat-input"
-                placeholder={listening ? '🎙️ Écoute en cours…' : 'Posez une question sur vos finances…'}
+                placeholder={listening ? '🎙️ Écoute en cours…' : 'Posez une question ou demandez d\'ajouter une transaction…'}
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={handleKey}
